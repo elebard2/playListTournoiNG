@@ -1,101 +1,81 @@
-import json
-import uuid
-from pathlib import Path
+from PySide6.QtCore import QAbstractTableModel, Qt, QModelIndex
 from typing import List
 
-from PySide6.QtCore import QAbstractTableModel, Qt, QModelIndex
-
-from api.music.music_exceptions import NotAMusicFileError, MusicLoadError
+import api.music.playlist
+from api.music.music_and_playlists_manager import MusicAndPlaylistsManager
 from api.music.music_object import MusicObject
+from api.music.playlist import Playlist
 
 
 class PlaylistModel(QAbstractTableModel):
-    _path_to_playlist_file: Path
-    _name: str
-    _id: uuid.UUID
-    _songs: List[MusicObject]
+    _headers = ["Numéro", "Titre", "Durée", "Artiste", "Path"]
+    _available_playlists: List[Playlist]
+    _current_playlist: Playlist
+    _music_and_playlist_manager: MusicAndPlaylistsManager
 
-    def __init__(self, p_path_to_playlist_file=None):
+    def __init__(self, p_playlists: List[Playlist]=None):
         super().__init__()
-        self.setHeaderData(0, Qt.Orientation.Horizontal, "Numéro")
-        self.setHeaderData(1, Qt.Orientation.Horizontal, "Titre")
-        self.setHeaderData(2, Qt.Orientation.Horizontal, "Durée")
-        self.setHeaderData(3, Qt.Orientation.Horizontal, "Artiste")
-        self.setHeaderData(4, Qt.Orientation.Horizontal, "Supprimer")
-        self._songs = list()
-        if p_path_to_playlist_file is not None:
-            self.path = p_path_to_playlist_file
-            self.try_loading_playlist_from_file()
+        self._current_playlist = Playlist()
+        self._available_playlists = p_playlists
+        self._music_and_playlist_manager = MusicAndPlaylistsManager()
+        [self.setHeaderData(i, Qt.Orientation.Horizontal, self._headers[i]) for i in range(len(self._headers))]
+        if self._available_playlists is not None and len(self._available_playlists) > 0:
+            self.set_playlist(self._available_playlists[0])
+
+    def rowCount(self, parent=None):
+        return self._current_playlist.size()
+
+    def columnCount(self, parent=None):
+        return len(self._headers)
+
+    def data(self, index: QModelIndex, role=Qt.DisplayRole):
+        if index.isValid() and role == Qt.DisplayRole:
+            music_uid = self._current_playlist.get_song(index.row())
+            music = self._music_and_playlist_manager.get_music_from_store(music_uid)
+            c = index.column()
+            if c == 0:
+                return index.row() + 1
+            elif c == 1:
+                return music.title
+            elif c == 2:
+                d = music.format_duration()
+                return d
+            elif c == 3:
+                return music.artist
+            elif c == 4:
+                return str(music.path)
         else:
-            self.uid = uuid.uuid4()
-            self.name = f"Playlist_{str(self._id)[0:8]}"
+            return None
 
-    @property
-    def path(self):
-        return self._path_to_playlist_file
+    def headerData(self, section: int, orientation: Qt.Orientation, role=Qt.DisplayRole):
+        if role == Qt.DisplayRole and orientation == Qt.Horizontal:
+            return self._headers[section]
+        else:
+            return None
 
-    @path.setter
-    def path(self, p_path):
-        if isinstance(p_path, Path) and p_path.suffix == ".json":
-            self._path_to_playlist_file = p_path
+    def insertSongs(self, songs: List[MusicObject], index_start: int = 0):
+        if self._current_playlist.is_empty() or 0 <= index_start < self._current_playlist.size():
+            super().beginInsertRows(QModelIndex(), index_start, index_start + len(songs))
+            super().endInsertRows()
 
-    @property
-    def name(self):
-        return self._name
+    def removeSongs(self, count: int, row: int = 0):
+        if 0 <= row <= self.rowCount() and count <= self.rowCount() - row:
+            super().beginRemoveRows(QModelIndex(), row, row + count)
+            super().endRemoveRows()
 
-    @name.setter
-    def name(self, p_name):
-        if isinstance(p_name, str):
-            self._name = p_name
+    def get_playlist(self):
+        return self._current_playlist
 
-    @property
-    def uid(self):
-        return self._id
+    def switch_playlist(self, index):
+        new_playlist = self._available_playlists[index]
+        self.set_playlist(new_playlist)
 
-    @uid.setter
-    def uid(self, p_uuid):
-        if isinstance(p_uuid, uuid.UUID):
-            self._id = p_uuid
+    def set_playlist(self, p_playlist):
+        self._current_playlist = p_playlist
+        if isinstance(p_playlist, api.music.playlist.Playlist):
+            self.populate_model()
 
-    def try_loading_playlist_from_file(self):
-        if self.path is not None:
-            f = open(self.path, "r")
-            data = json.loads(f.read())
-            self.name = data['name']
-            self.uid = data['uuid']
-            songs = data['songs']
-            for song in songs:
-                try:
-                    music_object = MusicObject(Path(song['path']))
-                    self._songs.append(music_object)
-                except NotAMusicFileError:
-                    continue
-                except MusicLoadError:
-                    continue
-
-    def rowCount(self, index):
-        return len(self._songs)
-
-    def columnCount(self, index):
-        return 5
-
-    def data(self, index, role):
-        if role == Qt.DisplayRole:
-            status, text = self._songs[index.row()]
-            return text
-
-    def headerData(self, section, orientation, role):
-        if role == Qt.DisplayRole:
-            if orientation == Qt.Orientation.Horizontal:
-                if section == 0:
-                    return "Numéro"
-                elif section == 1:
-                    return "Titre"
-                elif section == 2:
-                    return "Durée"
-                elif section == 3:
-                    return "Artiste"
-                elif section == 4:
-                    return "Supprimer"
-            else:
-                return ""
+    def populate_model(self):
+        if self.rowCount() > 0:
+            self.removeSongs(self.rowCount())
+        self.insertSongs(self._current_playlist.get_all_songs())
