@@ -4,6 +4,7 @@ from PySide6 import QtWidgets, QtGui, QtCore
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QBoxLayout
 
+from api.music.music_and_playlists_manager import MusicAndPlaylistsManager
 from widgets.main_widget import MainWidget
 
 
@@ -30,7 +31,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setup_connections()
 
     def create_widgets(self):
-        self.main_widget = MainWidget(self)
+        self.main_widget = MainWidget(self._base_dir)
 
     def modify_widgets(self):
         pass
@@ -43,3 +44,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def setup_connections(self):
         pass
+
+    def closeEvent(self, e) -> None:
+        music_and_playlists_manager = MusicAndPlaylistsManager()
+        music_and_playlists_manager.stop()
+        e.accept()

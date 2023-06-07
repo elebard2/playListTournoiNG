@@ -1,3 +1,4 @@
+from math import floor
 from pathlib import Path
 import audio_metadata
 import uuid
@@ -68,8 +69,8 @@ class MusicObject:
 
     @duration.setter
     def duration(self, p_duration):
-        if isinstance(p_duration, float) and p_duration > 0:
-            self._duration = p_duration
+        if (isinstance(p_duration, float) or isinstance(p_duration, int)) and p_duration > 0:
+            self._duration = float(p_duration)
         else:
             raise ValueError
 
@@ -114,20 +115,23 @@ class MusicObject:
             raise NotAMusicFileError(self._path_to_file)
 
     def format_duration(self):
-        if self.duration is not None and isinstance(self.duration, float) and self.duration > 0:
-            minutes = int(self.duration / 60)
-            hours = int(minutes / 60)
-            seconds = int(self.duration % 60)
+        if self._duration is not None and isinstance(self._duration, float) and self._duration > 0:
+            hours = int(self._duration) // 3600
+            minutes = (int(self._duration) - 3600 * hours) // 60
+            seconds = int(self._duration) - 3600 * hours - 60 * minutes
 
-            if hours <= 0:
+            if hours == 0:
                 str_hours = None
+            elif hours < 10:
+                str_hours = f"0{hours}"
             else:
                 str_hours = f"{hours}"
-                minutes = minutes - 60 * hours
+
             if minutes < 10:
                 str_minutes = f"0{minutes}"
             else:
                 str_minutes = f"{minutes}"
+
             if seconds < 10:
                 str_seconds = f"0{seconds}"
             else:
@@ -147,5 +151,5 @@ class MusicObject:
             self.uid = uuid.UUID(hash_value.hexdigest()[::2])
 
     def as_tuple(self):
-        the_tuple = (str(self.uid), self.title, self.artist, self.duration, self.path)
+        the_tuple = (str(self.uid), self.title, self.artist, self.duration, str(self.path))
         return the_tuple
