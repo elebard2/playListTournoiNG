@@ -66,7 +66,7 @@ class PlaylistModel(QAbstractTableModel):
             return None
 
     def insert_songs_rows(self, songs: List[MusicObject], index_start: int = 0, modify_current_playlist: bool = False):
-        if self.get_playlist() is not None and self.get_playlist().is_empty() or 0 <= index_start < self.get_playlist().size():
+        if self.get_playlist() is not None and (self.get_playlist().is_empty() or 0 <= index_start <= self.get_playlist().size()):
             super().beginInsertRows(QModelIndex(), index_start, index_start + len(songs))
             if modify_current_playlist:
                 self.insertRows(index_start, len(songs))
