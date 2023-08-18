@@ -1,11 +1,12 @@
 import os.path
 import sys
+import time
 from enum import Enum
 from math import sqrt, exp, log
 from pathlib import Path
 
 from PySide6 import QtWidgets, QtCore
-from PySide6.QtCore import QStandardPaths, Qt, Slot, QUrl
+from PySide6.QtCore import QStandardPaths, Qt, Slot, QUrl, QTimer
 from PySide6.QtGui import QIcon, QAction
 from PySide6.QtMultimedia import (QAudioOutput, QMediaFormat,
                                   QMediaPlayer)
@@ -144,6 +145,7 @@ class MusicPlayer(QtWidgets.QWidget):
     _shuffle_mode: MusicPlayerShuffleMode
     _repeat_mode: MusicPlayerRepeatMode
     _ambient_music_mode: AmbientMusicMode
+    _initial_position: int
 
     def __init__(self, p_parent):
         super().__init__(p_parent)
@@ -333,21 +335,14 @@ class MusicPlayer(QtWidgets.QWidget):
         self._position_slider.sliderMoved.connect(self.handle_music_position_slider_moved)
 
     def play_clicked(self):
-        if self._normal_music_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.PlayingState:
-            if self._normal_music_qmedia_player.source() == QUrl(''):
-                self.play_button_clicked.emit()
-            else:
-                self._normal_music_qmedia_player.play()
+        self.play_music()
 
     def pause_clicked(self):
         if self._normal_music_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.PausedState:
             self._normal_music_qmedia_player.pause()
 
     def stop_clicked(self):
-        if self._normal_music_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.StoppedState:
-            self.old_position = 0
-            self._label_current_song_position.setText(START_SONG_DURATION)
-            self._normal_music_qmedia_player.stop()
+        self.stop_music()
 
     def previous_clicked(self):
         # Go to previous track if we are within the first 5 seconds of playback
@@ -380,6 +375,48 @@ class MusicPlayer(QtWidgets.QWidget):
         else:
             self.repeat_mode = MusicPlayerRepeatMode.REPEAT_ALL
             self._switch_repeat_mode_action.setIcon(self._repeat_all_icon)
+
+    def play_music(self):
+        if self._normal_music_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.PlayingState:
+            if self._normal_music_qmedia_player.source() == QUrl(''):
+                self.play_button_clicked.emit()
+            else:
+                self._normal_music_qmedia_player.play()
+
+    def stop_music(self):
+        if self._normal_music_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.StoppedState:
+            self.old_position = 0
+            self._label_current_song_position.setText(START_SONG_DURATION)
+            self._normal_music_qmedia_player.stop()
+
+    def play_ambient_music(self):
+        if self._ambient_music_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.PlayingState:
+            self.request_ambient_music_track.emit()
+
+    def stop_ambient_music(self):
+        if self._ambient_music_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.StoppedState:
+            self._ambient_music_qmedia_player.stop()
+
+    def play_events_player(self):
+        if self._events_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.PlayingState and self._events_qmedia_player.source() != QUrl(''):
+            self._events_qmedia_player.play()
+            if self._normal_music_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.StoppedState:
+                self._initial_position = self._volume_slider.sliderPosition()
+                self._volume_slider.setEnabled(False)
+                self._volume_slider.setSliderPosition(5)
+                timer = QTimer(self)
+                timer.setSingleShot(True)
+                timer.timeout.connect(self.restore_music_volume)
+                timer.start(3000)
+
+    def restore_music_volume(self):
+        if self._normal_music_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.StoppedState:
+            self._volume_slider.setSliderPosition(self._initial_position)
+        self._volume_slider.setEnabled(True)
+
+    def stop_events_player(self):
+        if self._events_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.StoppedState:
+            self._events_qmedia_player.stop()
 
     def update_buttons(self, state):
         if state == QMediaPlayer.PlaybackState.StoppedState:
@@ -464,66 +501,55 @@ class MusicPlayer(QtWidgets.QWidget):
     def handle_timer_starts(self, p_timer_id: int):
         if p_timer_id == 1:
             self.enable_all_music_player_actions()
-            if self._ambient_music_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.StoppedState:
-                self._ambient_music_qmedia_player.stop()
-            if self._events_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.StoppedState:
-                self._events_qmedia_player.stop()
+            self.stop_ambient_music()
+            self.stop_events_player()
             self._events_qmedia_player.setSource(QUrl(''))
             self._events_qmedia_player.setSource(QUrl.fromLocalFile(str(self._path_to_start_buzzer_sound)))
-            self._events_qmedia_player.play()
+            self.play_events_player()
+            self.play_music()
         elif self.ambient_music_mode == AmbientMusicMode.AMBIENT_MUSIC:
-            if self._normal_music_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.StoppedState:
-                self._normal_music_qmedia_player.stop()
-            if self._ambient_music_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.PlayingState:
-                self.request_ambient_music_track.emit()
+            self.stop_music()
+            self.play_ambient_music()
 
     def handle_break_timer_threshold(self, p_threshold: int):
-        if self._events_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.StoppedState:
-            self._events_qmedia_player.stop()
+        self.stop_events_player()
         if p_threshold == 60:
             self._events_qmedia_player.setSource(QUrl.fromLocalFile(str(self._path_to_one_minute_left_break)))
         elif p_threshold == 5:
             self._events_qmedia_player.setSource(QUrl.fromLocalFile(str(self._path_to_five_seconds_countdown_sound)))
-        self._events_qmedia_player.play()
+        self.play_events_player()
 
     def handle_match_timer_threshold(self, p_threshold: int):
-        if self._events_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.StoppedState:
-            self._events_qmedia_player.stop()
+        self.stop_events_player()
         if p_threshold == 60:
             self._events_qmedia_player.setSource(QUrl.fromLocalFile(str(self._path_to_one_minute_left_match)))
         elif p_threshold == 5:
             self._events_qmedia_player.setSource(QUrl.fromLocalFile(str(self._path_to_five_seconds_countdown_sound)))
-        self._events_qmedia_player.play()
+        self.play_events_player()
 
     def handle_match_timer_ends(self):
+        self.stop_events_player()
+        self._events_qmedia_player.setSource(QUrl.fromLocalFile(str(self._path_to_end_buzzer_sound)))
+        self.play_events_player()
         if self.ambient_music_mode.value == 2:
-            if self._normal_music_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.StoppedState:
-                self._normal_music_qmedia_player.stop()
-            if self._events_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.StoppedState:
-                self._events_qmedia_player.stop()
+            self.stop_music()
             self.disable_all_music_player_actions()
-            self._events_qmedia_player.setSource(QUrl.fromLocalFile(str(self._path_to_end_buzzer_sound)))
-            self._events_qmedia_player.play()
-            if self._ambient_music_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.PlayingState:
-                self.request_ambient_music_track.emit()
+            self.play_ambient_music()
 
     def handle_match_timer_stops(self):
         pass
 
     def handle_break_timer_ends(self, p_mode: int):
         if p_mode == 2:
-            if self._ambient_music_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.StoppedState:
-                self._ambient_music_qmedia_player.stop()
-            if self._normal_music_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.PlayingState:
-                self._normal_music_qmedia_player.play()
+            self.stop_ambient_music()
+            self.play_music()
             self.enable_all_music_player_actions()
 
     def handle_break_timer_stops(self):
         pass
 
     def handle_music_to_play_received(self, p_music_file_path: str, p_playlist_index: int):
-        if self._normal_music_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.StoppedState:
-            self._normal_music_qmedia_player.stop()
+        self.stop_music()
         self._current_playlist_index = p_playlist_index
         self._normal_music_qmedia_player.setSource(QUrl.fromLocalFile(p_music_file_path))
         self._normal_music_qmedia_player.setLoops(1)
@@ -531,10 +557,8 @@ class MusicPlayer(QtWidgets.QWidget):
 
     def handle_receive_ambient_music(self, p_ambient_music_file_path: str):
         if p_ambient_music_file_path is not None and Path(p_ambient_music_file_path).exists:
-            if self._normal_music_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.StoppedState:
-                self._normal_music_qmedia_player.stop()
-            if self._ambient_music_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.StoppedState:
-                self._ambient_music_qmedia_player.stop()
+            self.stop_music()
+            self.stop_ambient_music()
             self._ambient_music_qmedia_player.setSource(QUrl.fromLocalFile(p_ambient_music_file_path))
             self._ambient_music_qmedia_player.setLoops(QMediaPlayer.Loops.Infinite)
             self._ambient_music_qmedia_player.play()
@@ -546,8 +570,7 @@ class MusicPlayer(QtWidgets.QWidget):
             self.ambient_music_mode = 1
 
     def handle_received_song_to_play(self, p_path_to_music: str, p_position_in_playlist: int):
-        if self._normal_music_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.StoppedState:
-            self._normal_music_qmedia_player.stop()
+        self.stop_music()
         self._normal_music_qmedia_player.setSource(QUrl.fromLocalFile(p_path_to_music))
         self._current_playlist_index = p_position_in_playlist
 
@@ -558,18 +581,20 @@ class MusicPlayer(QtWidgets.QWidget):
             self.music_stopped.emit()
 
     def handle_playlist_switched(self):
-        if self._normal_music_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.StoppedState:
-            self._normal_music_qmedia_player.stop()
+        self.stop_music()
         self._current_playlist_index = 0
-        self.change_track_button_clicked.emit(self.repeat_mode.value, self.shuffle_mode.value,
-                                              self._current_playlist_index, -1)
+        self._normal_music_qmedia_player.setSource(QUrl())
         self.enable_all_music_player_actions()
 
     def handle_no_more_playlist(self):
-        if self._normal_music_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.StoppedState:
-            self._normal_music_qmedia_player.stop()
+        self.stop_music()
         self._normal_music_qmedia_player.setSource(QUrl())
         self.disable_all_music_player_actions()
 
     def set_music_volume_from_volume_slider(self, p_position: int):
         self._audio_output_normal_music.setVolume(exp(log(1000) * p_position / 100)/250)
+
+    def handle_stop_cycling(self):
+        self.stop_ambient_music()
+        self.stop_events_player()
+        self.enable_all_music_player_actions()

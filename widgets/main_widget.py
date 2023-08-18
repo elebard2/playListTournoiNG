@@ -82,6 +82,7 @@ class MainWidget(QtWidgets.QWidget):
         # self._photo.setObjectName("photo")
         self._check_box_enable_match_and_break_transition.setText("Transition match/pause automatique")
         self._check_box_enable_break_music.setText("Musique d'ambiance en dehors des matchs")
+        self._check_box_enable_break_music.setEnabled(False)
         self._break_timer_widget.setVisible(False)
         self._start_cycling_button.setText("Démarrer cycle match/pause")
         self._start_cycling_button.setVisible(False)
@@ -114,6 +115,7 @@ class MainWidget(QtWidgets.QWidget):
         self._stop_cycling_button.clicked.connect(self.stop_cycling_button_clicked)
         self._stop_cycling_button.clicked.connect(self._match_timer_widget.stop_timer)
         self._stop_cycling_button.clicked.connect(self._break_timer_widget.stop_timer)
+        self._stop_cycling_button.clicked.connect(self._music_player.handle_stop_cycling)
 
         # Connect CheckBoxes Signals
         self._check_box_enable_match_and_break_transition.stateChanged.connect(self.toggle_mode)
@@ -121,6 +123,7 @@ class MainWidget(QtWidgets.QWidget):
 
         # Connect Match Timer Signals
         self._match_timer_widget.timer_starts.connect(self._music_player.handle_timer_starts)
+        self._match_timer_widget.timer_starts.connect(self.handle_timer_starts)
         self._match_timer_widget.timer_specific_threshold.connect(self._music_player.handle_match_timer_threshold)
         self._match_timer_widget.timer_ends.connect(self.handle_timer_ends)
         self._match_timer_widget.timer_stops.connect(self.handle_timer_stops)
@@ -158,6 +161,7 @@ class MainWidget(QtWidgets.QWidget):
             self._stop_cycling_button.setVisible(True)
             self._match_timer_widget.timer_ends.connect(self._break_timer_widget.start_timer)
             self._break_timer_widget.timer_ends.connect(self._match_timer_widget.start_timer)
+            self._check_box_enable_break_music.setEnabled(True)
             self.mode = 2
         else:
             self._break_timer_widget.setVisible(False)
@@ -165,6 +169,7 @@ class MainWidget(QtWidgets.QWidget):
             self._stop_cycling_button.setVisible(False)
             self._match_timer_widget.timer_ends.disconnect(self._break_timer_widget.start_timer)
             self._break_timer_widget.timer_ends.disconnect(self._match_timer_widget.start_timer)
+            self._check_box_enable_break_music.setEnabled(False)
             self.mode = 1
 
     def start_cycling_button_clicked(self):
@@ -184,6 +189,11 @@ class MainWidget(QtWidgets.QWidget):
         if ambient_music is not None:
             self.signal_ambient_music.emit(str(ambient_music.path))
 
+    def handle_timer_starts(self, p_id: int):
+        if p_id == 1:
+            self._check_box_enable_match_and_break_transition.setEnabled(False)
+            self._check_box_enable_break_music.setEnabled(False)
+
     def handle_timer_ends(self, p_id: int):
         if p_id == 1:
             self.match_timer_ends.emit()
@@ -195,4 +205,3 @@ class MainWidget(QtWidgets.QWidget):
             self.match_timer_stops.emit(p_slave_mode)
         else:
             self.break_timer_stops.emit(p_slave_mode)
-

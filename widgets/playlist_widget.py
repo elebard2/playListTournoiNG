@@ -1,19 +1,18 @@
 import os
 import random
-import uuid
 from pathlib import Path
-from pprint import pprint
 from typing import List
 
 from PySide6 import QtWidgets, QtCore
 from PySide6.QtCore import QModelIndex
 from PySide6.QtGui import QIcon, QPalette, QColor, QShortcut, QKeySequence
 from PySide6.QtWidgets import QTableView, QComboBox, QGridLayout, QPushButton, QFileDialog, QLabel, QLineEdit, QFrame, \
-    QMessageBox
+    QMessageBox, QTabWidget
 
 from api.music.music_and_playlists_manager import MusicAndPlaylistsManager
 from api.music.playlist_model import PlaylistModel
 from api.music.playlist import Playlist
+from widgets.spotify_widget import SpotifyWidget
 
 
 class PlayListWidget(QtWidgets.QWidget):
@@ -21,6 +20,7 @@ class PlayListWidget(QtWidgets.QWidget):
     signal_playlist_switched = QtCore.Signal()
 
     _base_dir: Path
+    _tab_widget: QTabWidget
     _playlist_view: QTableView
     _playlist_combo_box: QComboBox
     _delete_playlist_button: QPushButton
@@ -34,6 +34,7 @@ class PlayListWidget(QtWidgets.QWidget):
     _music_and_playlists_manager: MusicAndPlaylistsManager
     _playlist_model: PlaylistModel
     _delete_song_shortcut: QShortcut
+    _spotify_widget: SpotifyWidget
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -44,13 +45,14 @@ class PlayListWidget(QtWidgets.QWidget):
 
     def setup_ui(self):
         self.create_widgets()
-        self.modify_widgets()
         self.create_layout()
         self.add_widgets_layout()
+        self.modify_widgets()
         self.setup_connections()
 
     def create_widgets(self):
         self._playlist_model = PlaylistModel()
+        #self._tab_widget = QTabWidget(self)
         self._playlist_view = QTableView(self)
         self._playlist_view.setModel(self._playlist_model)
         self._playlist_combo_box = QComboBox(self)
@@ -83,6 +85,11 @@ class PlayListWidget(QtWidgets.QWidget):
         self._playlist_view.setDragDropMode(QtWidgets.QAbstractItemView.DragDropMode.DragDrop)
         self._playlist_view.setColumnHidden(4, True)
         self._playlist_view.setEnabled(False)
+        self._playlist_view.setColumnWidth(0, 50)
+        self._playlist_view.setColumnWidth(1, 300)
+        self._playlist_view.setColumnWidth(2, 125)
+        self._playlist_view.setColumnWidth(3, 200)
+        self._playlist_view.horizontalHeader().setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.Stretch)
 
         self._new_playlist_label.setText("Nom de nouvelle playlist :")
         self._new_playlist_line_edit.setText("Nouvelle Playlist")
@@ -161,7 +168,6 @@ class PlayListWidget(QtWidgets.QWidget):
             msg_box.setDefaultButton(no_button)
             msg_box.exec()
             if msg_box.clickedButton() == yes_button:
-                print("Yes clicked - Deleting playlist")
                 self._playlist_combo_box.removeItem(index)
 
     def add_songs_to_current_playlist(self, p_files: List[Path]):
