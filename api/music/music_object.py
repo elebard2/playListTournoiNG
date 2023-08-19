@@ -1,6 +1,5 @@
-from math import floor
 from pathlib import Path
-import audio_metadata
+from tinytag import TinyTag
 import uuid
 import hashlib
 
@@ -98,18 +97,18 @@ class MusicObject:
 
     def set_from_metadata(self):
         try:
-            metadata = audio_metadata.load(self._path_to_file)
-            tags = metadata.tags
-            try:
-                self.artist = tags.artist[0]
-            except AttributeError:
-                self.artist = "<Inconnu>"
-            try:
-                self.title = tags.title[0]
-            except AttributeError:
+            tag = TinyTag.get(self._path_to_file)
+            artist = tag.artist
+            if artist is None:
+                self.artist = "Inconnu"
+            else:
+                self.artist = artist
+            title = tag.title
+            if title is None:
                 self.title = self._path_to_file.stem
-            stream_info = metadata.streaminfo
-            self.duration = stream_info.duration
+            else:
+                self.title = title
+            self.duration = tag.duration
             self.compute_id()
         except TypeError:
             raise NotAMusicFileError(self._path_to_file)

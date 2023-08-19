@@ -100,7 +100,7 @@ class MusicPlayer(QtWidgets.QWidget):
     music_stopped = QtCore.Signal()
 
     _current_playlist_index: int
-    old_position: int
+    _old_position: int
     _threshold_to_switch: int
     _layout: QGridLayout
     _audio_output_normal_music: QAudioOutput
@@ -149,7 +149,7 @@ class MusicPlayer(QtWidgets.QWidget):
 
     def __init__(self, p_parent):
         super().__init__(p_parent)
-        self.old_position = 0
+        self._old_position = 0
         self._current_playlist_index = -1
         self._threshold_to_switch = -1
         self.base_dir = p_parent._base_dir
@@ -385,7 +385,7 @@ class MusicPlayer(QtWidgets.QWidget):
 
     def stop_music(self):
         if self._normal_music_qmedia_player.playbackState() != QMediaPlayer.PlaybackState.StoppedState:
-            self.old_position = 0
+            self._old_position = 0
             self._label_current_song_position.setText(START_SONG_DURATION)
             self._normal_music_qmedia_player.stop()
 
@@ -445,13 +445,13 @@ class MusicPlayer(QtWidgets.QWidget):
         self._threshold_to_switch = music_object.duration * 1000 - 100
         self._label_current_song_duration.setText(music_object.format_duration())
         self._label_current_song_position.setText(START_SONG_DURATION)
-        self.old_position = 0
+        self._old_position = 0
 
     def position_changed(self, position):
-        delta = position - self.old_position
+        delta = position - self._old_position
         if delta >= 1000:
             self._label_current_song_position.setText(format_position(position))
-            self.old_position = position
+            self._old_position = position
         if position >= self._threshold_to_switch:
             self.next_clicked()
 
