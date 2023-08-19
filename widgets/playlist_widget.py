@@ -34,6 +34,7 @@ class PlayListWidget(QtWidgets.QWidget):
     _music_and_playlists_manager: MusicAndPlaylistsManager
     _playlist_model: PlaylistModel
     _delete_song_shortcut: QShortcut
+    _alt_delete_song_shortcut: QShortcut
     _spotify_widget: SpotifyWidget
 
     def __init__(self, parent):
@@ -103,7 +104,8 @@ class PlayListWidget(QtWidgets.QWidget):
         self._frame.setFrameShadow(QFrame.Shadow.Raised)
         self._frame.setPalette(QPalette(QColor(0, 127, 255, 127)))
 
-        self._delete_song_shortcut = QShortcut(QKeySequence(QKeySequence.StandardKey.Delete), self._playlist_view)
+        self._delete_song_shortcut = QShortcut(QKeySequence(QtCore.Qt.Key.Key_Delete), self._playlist_view)
+        self._alt_delete_song_shortcut = QShortcut(QKeySequence(QtCore.Qt.Key.Key_Backspace), self._playlist_view)
 
     def create_layout(self):
         self._layout = QGridLayout(self)
@@ -128,6 +130,7 @@ class PlayListWidget(QtWidgets.QWidget):
         self._new_playlist_push_button.clicked.connect(self.handle_new_playlist_button_clicked)
         self._playlist_view.doubleClicked.connect(self.handle_view_double_clicked)
         self._delete_song_shortcut.activated.connect(self.handle_delete_song)
+        self._alt_delete_song_shortcut.activated.connect(self.handle_delete_song)
         self._playlist_model.signal_no_playlist_selected.connect(self.handle_no_playlist)
         self._playlist_model.playlist_switched.connect(self.handle_playlist_switched)
 
